@@ -1,8 +1,8 @@
 # Controle de gastos pessoais API
 
 Este projeto será usado para avaliação da primeira sprint, como uso no **MVP**, para avaliação da **Pós em Engenharia de Software**.
-
 Neste projeto, será criado uma API de controle de gastos pessoal simples, usando o FlaskAPI e SQLAlchemy ORM. 
+
 ---
 ## Como executar 
 
