@@ -177,15 +177,15 @@ def consultar_categorias_salvas():
          responses={"200": CategoriaViewSchema, "409": ErrorSchema, "400": ErrorSchema, "404": ErrorSchema,
                     "500": ErrorSchema}
          )
-def consultar_categoria(params: SearchCategoriaSchema):
-    categoria_name = params.name
+def consultar_categoria(query: SearchCategoriaSchema):
+    categoria_name = query.name
     if not categoria_name:
         return {"message": "Nenhum criterio de pesquisa foi mandado"}, 400
     session = Session()
     categoria = session.query(Categoria).filter_by(name=categoria_name).first()
 
     if not categoria:
-        return {"message": "Nenhum categoria foi mandado"}, 404
+        return {"message": f"Nenhum categoria encontrada com o criterio informado: {categoria_name} :/"}, 404
     else:
         return definir_categoria(categoria)
 

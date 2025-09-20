@@ -17,7 +17,7 @@ class CategoriaViewSchema(CategoriaSchema):
 
 
 class SearchCategoriaSchema(BaseModel):
-    name: Optional[str] = "Cartões"
+    name: str = "Cartões"
 
 
 class CategoriaFormSchema(CategoriaSchema):
