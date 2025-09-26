@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import List
 
 from pydantic import BaseModel
@@ -9,7 +10,7 @@ class GastosPessoaisSchema(BaseModel):
     name: str = "Lançamento de cartão"
     descricao: str = "Lançamento de cartão do mês 12/29"
     valor: float = 0.0
-    data: str = "16/12/2029"
+    data: datetime = "16/12/2029"
     categoria_id: int = 1
 
 class GastosBuscaSchema(BaseModel):
@@ -35,7 +36,7 @@ def apresenta_gastos(gastos: List[Gastos]):
             "id": gasto.id,
             "descricao": gasto.descricao,
             "valor": gasto.valor,
-            "data": gasto.data,
+            "data": gasto.data.strftime("%d/%m/%Y"),
             "categoria_name": gasto.categoria.name
         })
     return {"gastos": result}

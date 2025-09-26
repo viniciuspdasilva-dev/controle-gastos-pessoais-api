@@ -33,7 +33,7 @@ class Gastos(Base):
     id: Mapped[Integer] = Column(Integer, primary_key=True, autoincrement=True, unique=True)
     descricao: Mapped[String] = Column(String(120), nullable=False)
     valor: Mapped[Float] = Column(Float, nullable=False, default=0.0)
-    data: Mapped[DateTime]  = Column(String(20), nullable=False, default=datetime.now)
+    data: Mapped[DateTime]  = Column(DateTime, nullable=False, default=datetime.now)
     categoria_id: Mapped[Integer] = Column(Integer, ForeignKey('categoria.id'), nullable=False)
 
 

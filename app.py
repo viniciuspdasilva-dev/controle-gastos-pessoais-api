@@ -1,23 +1,19 @@
-from getopt import error
+from datetime import datetime
 
-from flask_openapi3 import OpenAPI, Info, Tag, Contact
 from flask import redirect
-from sqlalchemy import func, desc, cast, DateTime
-
+from flask_cors import CORS
+from flask_openapi3 import OpenAPI, Info, Tag, Contact
+from sqlalchemy import func, desc
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.sql.coercions import expect
 
 from models import Session
-from models.tables import Categoria, Gastos, Tags
-
-from flask_cors import CORS
-
-from schemas.Relatorios import construir_relatorio_gastos_per_categoria, CategoriaTotal, \
-    TotalizadorGastosPerCategoriaSchema, RelatorioTotalSchema, construir_relatorio_total_geral, RelatorioQuerySchema
+from models.tables import Categoria, Gastos
 from schemas.categoria import CategoriaSchema, definir_categorias, ListaCategoriaSchema, definir_categoria, \
     SearchCategoriaSchema, CategoriaViewSchema
 from schemas.error import ErrorSchema
 from schemas.gastos import GastosViewSchema, GastosPessoaisSchema, apresenta_gasto, GastosBuscaSchema, apresenta_gastos
+from schemas.relatorios import construir_relatorio_gastos_per_categoria, CategoriaTotal, \
+    TotalizadorGastosPerCategoriaSchema, RelatorioTotalSchema, construir_relatorio_total_geral, RelatorioQuerySchema
 
 contact = Contact(
     name="Vinicius Pereira da Silva",
@@ -46,20 +42,22 @@ def home():
 
 
 # Rotas - Gastos
-@app.post("/gasto/cadastrar",
+@app.post("/gastos",
           tags=[gastos_tag],
           description="Rota principal para inserir um novo gasto pessoal",
           responses={"200": GastosViewSchema, "409": ErrorSchema, "400": ErrorSchema, "500": ErrorSchema}
           )
 def gasto_cadastrar(form: GastosPessoaisSchema):
+    # data_obj = datetime.strptime(form.data, "%d/%m/%Y")
+    print(form)
     gasto = Gastos(
         descricao=form.descricao,
-        data=form.data,
+        data= form.data,
         valor=form.valor,
         categoria_id=form.categoria_id
     )
+    session = Session()
     try:
-        session = Session()
         session.add(gasto)
         session.commit()
         return apresenta_gasto(gasto), 200
@@ -69,6 +67,8 @@ def gasto_cadastrar(form: GastosPessoaisSchema):
     except Exception as e:
         error_msg = "Não foi possível salvar novo item :/" + str(e)
         return {"message": error_msg}, 400
+    finally:
+        session.close()
 
 
 @app.get("/gastos",
@@ -82,7 +82,9 @@ def buscar_gastos():
         gastos = session.query(Gastos).all()
         return apresenta_gastos(gastos), 200
     except Exception as e:
-        return {"message": f"Ocorreu um erro durante a consulta: {e}"}
+        return {"message": f"Ocorreu um erro durante a consulta: {e}"}, 400
+    finally:
+        session.close()
 
 
 @app.get("/gasto/buscar/{id}",
@@ -95,15 +97,21 @@ def buscar_gasto(query: GastosBuscaSchema):
     if id_gasto is None or id_gasto == 0:
         return {"message": "Não foi possivel realizar a consulta, pois o id não foi enviado corretamente"}, 400
     session = Session()
-    gasto = session.query(Gastos).filter(Gastos.id == id_gasto).first()
-    if gasto is None:
-        return {"message": f"Nenhum gasto encontrado com o id: {id_gasto}"}, 404
-    else:
-        return apresenta_gasto(gasto), 200
-
+    try:
+        gasto = session.query(Gastos).filter(Gastos.id == id_gasto).first()
+        session.commit()
+        session.close()
+        if gasto is None:
+            return {"message": f"Nenhum gasto encontrado com o id: {id_gasto}"}, 404
+        else:
+            return apresenta_gasto(gasto), 200
+    except Exception as e:
+        error_msg = "Ocorreu um erro ao realizar a consulta: " + str(e)
+        return {"message": error_msg}, 400
+    finally:
+        session.close()
 
 # Rotas - Consultas gerais
-
 @app.get("/relatorios/gastos_per_categoria",
          tags=[relatorios_tag],
          description="Totalizador de gastos per categoria, dentro de um intervalo de datas",
@@ -115,11 +123,12 @@ def totalizar_gastos_categorias(query: RelatorioQuerySchema):
     final_date = query.final_date
     session = Session()
     try:
+        initial_date = datetime.strptime(initial_date, "%d/%m/%Y")
+        final_date = datetime.strptime(final_date, "%d/%m/%Y")
         result = (
             session.query(Categoria.name.label("Categoria"), func.coalesce(func.sum(Gastos.valor), 0).label("total"))
             .join(Gastos, Categoria.id == Gastos.categoria_id)
-            .where(cast(Gastos.data, DateTime) >= initial_date)
-            .where(cast(Gastos.data, DateTime) <= final_date)
+            .filter(Gastos.data >= initial_date, Gastos.data <= final_date)
             .group_by(Categoria.name)
             .order_by(desc(func.sum(Gastos.valor)))
             .all()
@@ -130,6 +139,8 @@ def totalizar_gastos_categorias(query: RelatorioQuerySchema):
     except Exception as e:
         error_msg = "Ocorreu um erro ao realizar a consulta: " + str(e)
         return {"message": error_msg}, 400
+    finally:
+        session.close()
 
 
 @app.get("/relatorios/total_geral",
@@ -141,19 +152,22 @@ def totalizar_gastos_categorias(query: RelatorioQuerySchema):
 def consultar_valor_total(query: RelatorioQuerySchema):
     initial_date = query.initial_date
     final_date = query.final_date
+    session = Session()
     try:
-        session = Session()
+        initial_date = datetime.strptime(initial_date, "%d/%m/%Y")
+        final_date = datetime.strptime(final_date, "%d/%m/%Y")
         total = (
             session.query(func.coalesce(func.sum(Gastos.valor), 0).label("total"))
-            .where(cast(Gastos.data, DateTime) >= initial_date)
-            .where(cast(Gastos.data, DateTime) <= final_date)
+            .where(Gastos.data >= initial_date)
+            .where(Gastos.data <= final_date)
             .scalar()
         )
         return construir_relatorio_total_geral(total), 200
     except Exception as e:
         error_msg = "Ocorreu um erro ao realizar a consulta: " + str(e)
         return {"message": error_msg}, 400
-
+    finally:
+        session.close()
 
 # Rotas - Categorias
 @app.get("/categorias",
@@ -162,13 +176,16 @@ def consultar_valor_total(query: RelatorioQuerySchema):
          responses={"200": ListaCategoriaSchema, "409": ErrorSchema, "400": ErrorSchema, "500": ErrorSchema}
          )
 def consultar_categorias_salvas():
+    session = Session()
     try:
-        session = Session()
         categorias = session.query(Categoria).all()
+        session.commit()
         return definir_categorias(categorias)
     except Exception as e:
         msg_erro = "Ocorreu um erro: " + str(e)
         return {"message": msg_erro}, 400
+    finally:
+        session.close()
 
 
 @app.get("/categoria",
@@ -182,12 +199,19 @@ def consultar_categoria(query: SearchCategoriaSchema):
     if not categoria_name:
         return {"message": "Nenhum criterio de pesquisa foi mandado"}, 400
     session = Session()
-    categoria = session.query(Categoria).filter_by(name=categoria_name).first()
-
-    if not categoria:
-        return {"message": f"Nenhum categoria encontrada com o criterio informado: {categoria_name} :/"}, 404
-    else:
-        return definir_categoria(categoria)
+    try:
+        categoria = session.query(Categoria).filter_by(name=categoria_name).first()
+        session.commit()
+        session.close()
+        if not categoria:
+            return {"message": f"Nenhum categoria encontrada com o criterio informado: {categoria_name} :/"}, 404
+        else:
+            return definir_categoria(categoria)
+    except Exception as e:
+        msg_erro = "Ocorreu um erro: " + str(e)
+        return {"message": msg_erro}, 400
+    finally:
+        session.close()
 
 
 @app.post("/categorias",
@@ -198,15 +222,16 @@ def cadastrar_categoria(form: CategoriaSchema):
     categoria = Categoria(
         name=form.name
     )
+    session = Session()
     try:
-        session = Session()
         session.add(categoria)
         session.commit()
         return definir_categoria(categoria), 200
-
     except IntegrityError as e:
         error_msg = "Gasto já cadastrado no sistema" + str(e)
         return {"message": error_msg}, 409
     except Exception as e:
         error_msg = "Não foi possível salvar novo item :/ - " + str(e)
         return {"message": error_msg}, 400
+    finally:
+        session.close()
