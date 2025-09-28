@@ -133,7 +133,8 @@ Definida em `tables.py`
 ### 📌 Gastos
 
 - `POST /gastos` → Cadastra novo gasto.
-    - Body: `GastosPessoaisSchema`
+    - Body: `GastosPessoaisSchema` - **Infelizmente, descobri um bug na execução dessa url via swagger, e não consegui corrigir ela a tempo. Entretanto, a execução via frontend está totalmente funcional.
+      Peço que relevem esse encalço.**
 - `GET /gastos` → Lista todos os gastos.
 - `GET /gasto/buscar/{id}` → Busca gasto pelo `id`.
 
